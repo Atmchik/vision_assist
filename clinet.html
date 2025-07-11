@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Vision Assist WebRTC</title>
+</head>
+<body>
+<h1>Vision Assist WebRTC Demo</h1>
+<video id="video" autoplay playsinline muted></video>
+<pre id="log"></pre>
+<button id="start" onclick="start()">Start</button>
+<button id="stop" onclick="stop()" style="display:none">Stop</button>
+<script>
+let pc;
+let dc;
+let localStream;
+async function start() {
+    pc = new RTCPeerConnection();
+    dc = pc.createDataChannel('results');
+    dc.onmessage = (e) => { document.getElementById('log').textContent = e.data; };
+    localStream = await navigator.mediaDevices.getUserMedia({video:true, audio:false});
+    document.getElementById('video').srcObject = localStream;
+    for (const track of localStream.getTracks()) { pc.addTrack(track, localStream); }
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    const resp = await fetch('/offer', {
+        method: 'POST',
+        body: JSON.stringify({sdp: pc.localDescription.sdp, type: pc.localDescription.type}),
+        headers: {'Content-Type': 'application/json'}
+    });
+    const answer = await resp.json();
+    await pc.setRemoteDescription(answer);
+    document.getElementById('stop').style.display = 'inline';
+}
+function stop() {
+    document.getElementById('stop').style.display = 'none';
+    if (dc) dc.close();
+    if (pc) pc.close();
+    if (localStream) localStream.getTracks().forEach(t => t.stop());
+}
+</script>
+</body>
+</html>
